@@ -4,7 +4,9 @@ app.use(express.json());
 const crypto = require("crypto");
 const fs = require("fs");
 var nc = require("nconf");
-const { send } = require("process");
+var pbkdf2 = require("pbkdf2");
+const pool = require("./db");
+
 nc.use("file", { file: "./../passwords.json" });
 nc.load();
 
@@ -19,45 +21,48 @@ app.get("/", async (req, res) => {
   }
 });
 
-app.get("/backup", async (req, res) => {
+app.get("/passwords/:id", async (req, res) => {
   try {
-    backupPasswords();
-    res.send("success");
-  } catch (error) {
-    res.send("error");
-  }
-});
-
-app.get("/passwords/:name", async (req, res) => {
-  try {
-    const { name } = req.params;
-    const item = nc.get(name);
-    const password = decryptPassword(item, key);
+    const { id } = req.params;
+    const item = await pool.query(
+      `select pwd from passwords where id = '${id}'`
+    );
+    const password = decryptPassword(item[0].pwd, key);
     res.send(password);
   } catch (error) {
+    console.log(error);
     res.send("error");
   }
 });
 
 app.get("/allkeys", async (req, res) => {
   try {
-    fs.readFile("../passwords.json", "utf8", readingFile);
-    let keys = [];
-    function readingFile(error, data) {
-      if (error) {
-        res.send("error");
-      }
-      for (key in JSON.parse(data)) {
-        keys.push(key);
-      }
-      res.send(keys);
+    const passwords = await pool.query(`select * from passwords`);
+    let liste = [];
+    for (let i = 0; i < passwords.length; i++) {
+      liste.push(passwords[i]);
     }
+    res.send(liste);
   } catch (error) {
     res.send("error");
   }
 });
 
-app.post("/new", async (req, res) => {});
+app.post("/new", async (req, res) => {
+  try {
+    const { password, name, url, id } = req.body;
+
+    const item = encryptPassword(password, key);
+    await pool.query(
+      `insert into passwords (pwd, name, url, id) values('${item}','${name}', '${url}', '${id}')`
+    );
+
+    res.send("success");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
 
 app.get("/all", async (req, res) => {
   try {
@@ -75,37 +80,6 @@ app.get("/all", async (req, res) => {
   }
 });
 
-function backupPasswords() {
-  fs.readFile("../passwords.json", "utf8", readingFile);
-
-  function readingFile(error, data) {
-    if (error) {
-      console.log(error);
-    } else {
-      // Creating new file - paste.txt with file.txt's content
-      fs.writeFile("../backup.json", data, "utf8", writeFile);
-    }
-  }
-
-  function writeFile(error) {
-    if (error) {
-      console.log(error);
-    } else {
-      console.log("Content has been pasted to backup.json file");
-    }
-  }
-}
-
-function ncSave() {
-  nc.save(function (err) {
-    if (err) {
-      console.error(err.message);
-      return;
-    }
-    console.log("Configuration saved successfully.");
-  });
-}
-
 function getIv() {
   var str = "";
   for (counter = 0; counter <= 15; counter++) {
@@ -116,14 +90,14 @@ function getIv() {
       counter--;
     }
   }
-  console.log(str);
   return str;
 }
 
 function encryptPassword(password, key) {
   let iv = getIv();
-
-  let cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  var derivedKey = pbkdf2.pbkdf2Sync(key, "salt", 1, 32, "sha512");
+  console.log(`derivedKey: ${derivedKey}`);
+  let cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
   let encrypted = cipher.update(password, "utf-8", "hex");
   encrypted += cipher.final("hex");
 
@@ -132,14 +106,19 @@ function encryptPassword(password, key) {
 }
 
 function decryptPassword(item, key) {
+  var derivedKey = pbkdf2.pbkdf2Sync(key, "salt", 1, 32, "sha512");
   iv = item.split(" ")[1];
   encrypted = item.split(" ")[0];
-  console.log(iv);
-  let decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  let decipher = crypto.createDecipheriv("aes-256-cbc", derivedKey, iv);
   let decrypted = decipher.update(encrypted, "hex", "utf-8");
   decrypted += decipher.final("utf-8");
   return decrypted;
 }
+
+// const f = encryptPassword("sanoj1809", key);
+// console.log(f);
+// const i = decryptPassword(f, key);
+// console.log(i);
 
 // let item = encryptPassword("#jonascc88", key);
 // nc.set("twitter.com", item.toString());
