@@ -35,9 +35,20 @@ app.get("/passwords/:id", async (req, res) => {
   }
 });
 
+app.get("/delpasswords/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`delete from passwords where id = '${id}'`);
+    res.send("success");
+  } catch (error) {
+    res.send("error");
+    console.log(error);
+  }
+});
+
 app.get("/allkeys", async (req, res) => {
   try {
-    const passwords = await pool.query(`select * from passwords`);
+    const passwords = await pool.query(`select * from passwords order by name`);
     let liste = [];
     for (let i = 0; i < passwords.length; i++) {
       liste.push(passwords[i]);
@@ -64,27 +75,11 @@ app.post("/new", async (req, res) => {
   }
 });
 
-app.get("/all", async (req, res) => {
-  try {
-    fs.readFile("../passwords.json", "utf8", readingFile);
-
-    function readingFile(error, data) {
-      if (error) {
-        console.log(error);
-      } else {
-        res.send(data);
-      }
-    }
-  } catch (error) {
-    res.send("error");
-  }
-});
-
 function getIv() {
   var str = "";
   for (counter = 0; counter <= 15; counter++) {
-    var randomNum = 0 + parseInt(Math.random() * 127);
-    if (randomNum > 33) {
+    var randomNum = 0 + parseInt(Math.random() * 122);
+    if (randomNum > 97) {
       str += String.fromCharCode(randomNum);
     } else {
       counter--;
@@ -106,6 +101,7 @@ function encryptPassword(password, key) {
 }
 
 function decryptPassword(item, key) {
+  console.log(item);
   var derivedKey = pbkdf2.pbkdf2Sync(key, "salt", 1, 32, "sha512");
   iv = item.split(" ")[1];
   encrypted = item.split(" ")[0];
@@ -114,22 +110,6 @@ function decryptPassword(item, key) {
   decrypted += decipher.final("utf-8");
   return decrypted;
 }
-
-// const f = encryptPassword("sanoj1809", key);
-// console.log(f);
-// const i = decryptPassword(f, key);
-// console.log(i);
-
-// let item = encryptPassword("#jonascc88", key);
-// nc.set("twitter.com", item.toString());
-
-// item = nc.get("twitter.com");
-// console.log(decryptPassword(item, key));
-
-//nc.get("desert");
-//ncSave();
-
-//`decrypted ${decrypted}; encrypted ${encrypted}; ${iv}; ${password}; ${key}`;
 
 const port = 5000;
 app.listen(port, () => {
