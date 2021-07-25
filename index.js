@@ -2,15 +2,11 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 const crypto = require("crypto");
-const fs = require("fs");
-var nc = require("nconf");
 var pbkdf2 = require("pbkdf2");
 const pool = require("./db");
+const bcrypt = require("bcrypt");
 
-nc.use("file", { file: "./../passwords.json" });
-nc.load();
-
-let key = "#lml!showpb->comeback2014letmein";
+const MASTER = "$2b$10$G.PjCSjF4weyzKVM9gDib.CM7Ci97ZuTcKlm9l.3cr8fBDll.W1Oy";
 
 app.get("/", async (req, res) => {
   try {
@@ -21,9 +17,10 @@ app.get("/", async (req, res) => {
   }
 });
 
-app.get("/passwords/:id", async (req, res) => {
+app.get("/passwords/:id/:key", async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, key } = req.params;
+
     const item = await pool.query(
       `select pwd from passwords where id = '${id}'`
     );
@@ -46,8 +43,15 @@ app.get("/delpasswords/:id", async (req, res) => {
   }
 });
 
-app.get("/allkeys", async (req, res) => {
+app.get("/allkeys/:key", async (req, res) => {
   try {
+    const { key } = req.params;
+    // console.log(key);
+    // console.log(bcrypt.compareSync(key.toString(), MASTER));
+    if (bcrypt.compareSync(key, MASTER) === false) {
+      res.send("Wrong Password");
+      return;
+    }
     const passwords = await pool.query(`select * from passwords order by name`);
     let liste = [];
     for (let i = 0; i < passwords.length; i++) {
@@ -59,8 +63,14 @@ app.get("/allkeys", async (req, res) => {
   }
 });
 
-app.post("/new", async (req, res) => {
+app.post("/new/:key", async (req, res) => {
   try {
+    const { key } = req.params;
+
+    if (bcrypt.compareSync(key, MASTER) === false) {
+      res.send("Wrong Password");
+      return;
+    }
     const { password, name, url, id } = req.body;
 
     const item = encryptPassword(password, key);
