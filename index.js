@@ -1,6 +1,13 @@
 const express = require("express");
 const app = express();
 app.use(express.json());
+app.use(function (req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  next();
+});
+
 const crypto = require("crypto");
 var pbkdf2 = require("pbkdf2");
 const pool = require("./db");
@@ -65,13 +72,12 @@ app.get("/allkeys/:key", async (req, res) => {
 
 app.post("/new/:key", async (req, res) => {
   try {
+    const { password, name, url, id } = req.body;
     const { key } = req.params;
-
     if (bcrypt.compareSync(key, MASTER) === false) {
       res.send("Wrong Password");
       return;
     }
-    const { password, name, url, id } = req.body;
 
     const item = encryptPassword(password, key);
     await pool.query(
@@ -103,6 +109,7 @@ function encryptPassword(password, key) {
   var derivedKey = pbkdf2.pbkdf2Sync(key, "salt", 1, 32, "sha512");
   console.log(`derivedKey: ${derivedKey}`);
   let cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
+  console.log(password);
   let encrypted = cipher.update(password, "utf-8", "hex");
   encrypted += cipher.final("hex");
 
@@ -122,6 +129,7 @@ function decryptPassword(item, key) {
 }
 
 const port = 5000;
-app.listen(port, () => {
+const ip = "192.168.178.41";
+app.listen(port, ip, () => {
   console.log("server started");
 });
