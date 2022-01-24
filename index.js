@@ -13,7 +13,6 @@ var pbkdf2 = require("pbkdf2");
 const pool = require("./db");
 const bcrypt = require("bcrypt");
 
-const MASTER = "$2b$10$G.PjCSjF4weyzKVM9gDib.CM7Ci97ZuTcKlm9l.3cr8fBDll.W1Oy";
 
 app.get("/", async (req, res) => {
   try {
